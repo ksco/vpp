@@ -44,17 +44,20 @@ class RemoteClassAttr:
         return self._remote._remote_exec(RemoteClass.STR, self.path_to_str())
 
     def __getattr__(self, attr):
+        if attr.startswith("__") and attr.endswith("__"):
+            raise AttributeError(attr)
         if attr[0] == "_":
-            if not (attr.startswith("__") and attr.endswith("__")):
-                raise AttributeError("tried to get private attribute: %s ", attr)
+            raise AttributeError("tried to get private attribute: %s ", attr)
         self._path.append(attr)
         return self
 
     def __setattr__(self, attr, val):
+        if attr.startswith("__") and attr.endswith("__"):
+            super(RemoteClassAttr, self).__setattr__(attr, val)
+            return
         if attr[0] == "_":
-            if not (attr.startswith("__") and attr.endswith("__")):
-                super(RemoteClassAttr, self).__setattr__(attr, val)
-                return
+            super(RemoteClassAttr, self).__setattr__(attr, val)
+            return
         self._path.append(attr)
         self._remote._remote_exec(RemoteClass.SETATTR, self.path_to_str(), value=val)
 
@@ -127,18 +130,21 @@ class RemoteClass(Process):
         return self.RemoteClassAttr(self, None)()
 
     def __getattr__(self, attr):
+        if attr.startswith("__") and attr.endswith("__"):
+            raise AttributeError(attr)
         if attr[0] == "_" or not self.is_alive():
-            if not (attr.startswith("__") and attr.endswith("__")):
-                if hasattr(super(RemoteClass, self), "__getattr__"):
-                    return super(RemoteClass, self).__getattr__(attr)
-                raise AttributeError("missing: %s", attr)
+            if hasattr(super(RemoteClass, self), "__getattr__"):
+                return super(RemoteClass, self).__getattr__(attr)
+            raise AttributeError("missing: %s", attr)
         return RemoteClassAttr(self, attr)
 
     def __setattr__(self, attr, val):
+        if attr.startswith("__") and attr.endswith("__"):
+            super(RemoteClass, self).__setattr__(attr, val)
+            return
         if attr[0] == "_" or not self.is_alive():
-            if not (attr.startswith("__") and attr.endswith("__")):
-                super(RemoteClass, self).__setattr__(attr, val)
-                return
+            super(RemoteClass, self).__setattr__(attr, val)
+            return
         setattr(RemoteClassAttr(self, None), attr, val)
 
     def _remote_exec(self, op, path=None, *args, **kwargs):
@@ -401,13 +407,15 @@ class RemoteVppTestCase(VppTestCase):
                 self.vpp.communicate()
 
     @classmethod
-    def setUpClass(cls, tempdir):
+    def setUpClass(cls, tempdir, cpus=None):
         # disable features unsupported in remote VPP
         orig_env = dict(os.environ)
         if "STEP" in os.environ:
             del os.environ["STEP"]
         if "DEBUG" in os.environ:
             del os.environ["DEBUG"]
+        if cpus is not None:
+            cls.assign_cpus(cpus)
         cls.tempdir_prefix = os.path.basename(tempdir) + "/"
         super(RemoteVppTestCase, cls).setUpClass()
         os.environ = orig_env

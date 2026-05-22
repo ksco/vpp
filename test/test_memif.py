@@ -49,7 +49,7 @@ class TestMemif(VppTestCase):
         if is_distro_debian12 == True and not hasattr(cls, "vpp"):
             cls.remote_test.quit_remote()
             return
-        cls.remote_test.setUpClass(cls.tempdir)
+        cls.remote_test.setUpClass(cls.tempdir, cls.remote_class.cpus)
         cls.create_pg_interfaces(range(1))
         for pg in cls.pg_interfaces:
             pg.config_ip4()
