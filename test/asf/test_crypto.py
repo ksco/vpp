@@ -8,6 +8,8 @@ from asfframework import VppAsfTestCase, VppTestRunner
 class TestCrypto(VppAsfTestCase):
     """Crypto Test Case"""
 
+    vapi_response_timeout = 60
+
     @classmethod
     def setUpClass(cls):
         super(TestCrypto, cls).setUpClass()
