@@ -2598,6 +2598,7 @@ class TestNAT44EI(MethodHolder):
     def test_pool_addr_fib(self):
         """NAT44EI add pool addresses to FIB"""
         static_addr = "10.0.0.10"
+        arp_opts = {"is-at": 2}
         self.nat44_add_address(self.nat_addr)
         flags = self.config_flags.NAT44_EI_IF_INSIDE
         self.vapi.nat44_ei_interface_add_del_feature(
@@ -2610,7 +2611,7 @@ class TestNAT44EI(MethodHolder):
 
         # NAT44EI address
         p = Ether(src=self.pg1.remote_mac, dst="ff:ff:ff:ff:ff:ff") / ARP(
-            op=ARP.who_has,
+            op="who-has",
             pdst=self.nat_addr,
             psrc=self.pg1.remote_ip4,
             hwsrc=self.pg1.remote_mac,
@@ -2620,11 +2621,11 @@ class TestNAT44EI(MethodHolder):
         self.pg_start()
         capture = self.pg1.get_capture(1)
         self.assertTrue(capture[0].haslayer(ARP))
-        self.assertTrue(capture[0][ARP].op, ARP.is_at)
+        self.assertEqual(capture[0][ARP].op, arp_opts["is-at"])
 
         # 1:1 NAT address
         p = Ether(src=self.pg1.remote_mac, dst="ff:ff:ff:ff:ff:ff") / ARP(
-            op=ARP.who_has,
+            op="who-has",
             pdst=static_addr,
             psrc=self.pg1.remote_ip4,
             hwsrc=self.pg1.remote_mac,
@@ -2634,11 +2635,11 @@ class TestNAT44EI(MethodHolder):
         self.pg_start()
         capture = self.pg1.get_capture(1)
         self.assertTrue(capture[0].haslayer(ARP))
-        self.assertTrue(capture[0][ARP].op, ARP.is_at)
+        self.assertEqual(capture[0][ARP].op, arp_opts["is-at"])
 
         # send ARP to non-NAT44EI interface
         p = Ether(src=self.pg2.remote_mac, dst="ff:ff:ff:ff:ff:ff") / ARP(
-            op=ARP.who_has,
+            op="who-has",
             pdst=self.nat_addr,
             psrc=self.pg2.remote_ip4,
             hwsrc=self.pg2.remote_mac,
@@ -2653,7 +2654,7 @@ class TestNAT44EI(MethodHolder):
         self.nat44_add_static_mapping(self.pg0.remote_ip4, static_addr, is_add=0)
 
         p = Ether(src=self.pg1.remote_mac, dst="ff:ff:ff:ff:ff:ff") / ARP(
-            op=ARP.who_has,
+            op="who-has",
             pdst=self.nat_addr,
             psrc=self.pg1.remote_ip4,
             hwsrc=self.pg1.remote_mac,
@@ -2664,7 +2665,7 @@ class TestNAT44EI(MethodHolder):
         self.pg1.assert_nothing_captured()
 
         p = Ether(src=self.pg1.remote_mac, dst="ff:ff:ff:ff:ff:ff") / ARP(
-            op=ARP.who_has,
+            op="who-has",
             pdst=static_addr,
             psrc=self.pg1.remote_ip4,
             hwsrc=self.pg1.remote_mac,
