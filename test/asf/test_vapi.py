@@ -19,8 +19,14 @@ class VAPITestCase(VppAsfTestCase):
     def tearDownClass(cls):
         super(VAPITestCase, cls).tearDownClass()
 
+    def get_vapi_test_executable(self, name):
+        executable = f"{config.vpp_build_dir}/vpp/bin/{name}"
+        if not os.path.isfile(executable) or not os.access(executable, os.X_OK):
+            self.skipTest(f"{name} binary was not built")
+        return executable
+
     def run_vapi_c(self, path, transport):
-        executable = f"{config.vpp_build_dir}/vpp/bin/vapi_c_test"
+        executable = self.get_vapi_test_executable("vapi_c_test")
         worker = Worker([executable, "vapi client", path, transport], self.logger)
         worker.start()
         timeout = 60
@@ -50,7 +56,7 @@ class VAPITestCase(VppAsfTestCase):
 
     def run_vapi_cpp(self, path, transport):
         """run C++ VAPI tests"""
-        executable = f"{config.vpp_build_dir}/vpp/bin/vapi_cpp_test"
+        executable = self.get_vapi_test_executable("vapi_cpp_test")
         worker = Worker([executable, "vapi client", path, transport], self.logger)
         worker.start()
         timeout = 120
