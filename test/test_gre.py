@@ -7,6 +7,7 @@ from scapy.packet import Raw
 from scapy.layers.l2 import Ether, Dot1Q, GRE
 from scapy.layers.inet import IP, UDP
 from scapy.layers.inet6 import IPv6
+from scapy.contrib.mpls import MPLS
 from scapy.volatile import RandMAC, RandIP
 
 from framework import VppTestCase
@@ -286,6 +287,51 @@ class TestGRE(VppTestCase):
                 self.assertEqual(rx_ip.src, tx_ip.src)
                 self.assertEqual(rx_ip.dst, tx_ip.dst)
                 # IP processing post pop has decremented the TTL
+                self.assertEqual(rx_ip.ttl + 1, tx_ip.ttl)
+
+            except:
+                self.logger.error(ppp("Rx:", rx))
+                self.logger.error(ppp("Tx:", tx))
+                raise
+
+    def verify_tunneled_mpls_o_4(
+        self, src_if, capture, sent, tunnel_src, tunnel_dst, labels, dscp=0, ecn=0
+    ):
+        self.assertEqual(len(capture), len(sent))
+        tos = (dscp << 2) | ecn
+
+        for i in range(len(capture)):
+            try:
+                tx = sent[i]
+                rx = capture[i]
+
+                tx_ip = tx[IP]
+                rx_ip = rx[IP]
+
+                self.assertEqual(rx_ip.src, tunnel_src)
+                self.assertEqual(rx_ip.dst, tunnel_dst)
+                self.assertEqual(rx_ip.tos, tos)
+                self.assertEqual(rx_ip.len, len(rx_ip))
+
+                rx_gre = rx[GRE]
+                self.assertEqual(rx_gre.proto, 0x8847)
+
+                rx_mpls = rx_gre[MPLS]
+                for ii, label in enumerate(labels):
+                    self.assertEqual(rx_mpls.label, label.value)
+                    self.assertEqual(rx_mpls.cos, label.exp)
+                    self.assertEqual(rx_mpls.ttl, label.ttl)
+
+                    if ii == len(labels) - 1:
+                        self.assertEqual(rx_mpls.s, 1)
+                    else:
+                        self.assertEqual(rx_mpls.s, 0)
+                        rx_mpls = rx_mpls[MPLS].payload
+
+                rx_ip = rx_mpls[IP]
+                self.assertEqual(rx_ip.src, tx_ip.src)
+                self.assertEqual(rx_ip.dst, tx_ip.dst)
+                # IP processing before label imposition has decremented the TTL
                 self.assertEqual(rx_ip.ttl + 1, tx_ip.ttl)
 
             except:
@@ -735,7 +781,14 @@ class TestGRE(VppTestCase):
 
         tx = self.create_stream_ip4(self.pg0, "5.5.5.5", "5.4.3.2")
         rx = self.send_and_expect(self.pg0, tx, self.pg0)
-        self.verify_tunneled_4o4(self.pg0, rx, tx, self.pg0.local_ip4, "1.1.1.2")
+        self.verify_tunneled_mpls_o_4(
+            self.pg0,
+            rx,
+            tx,
+            self.pg0.local_ip4,
+            "1.1.1.2",
+            [VppMplsLabel(33)],
+        )
 
         #
         # an MPLS tunnel over the GRE tunnel add a route through
@@ -764,7 +817,14 @@ class TestGRE(VppTestCase):
 
         tx = self.create_stream_ip4(self.pg0, "5.5.5.5", "5.4.3.1")
         rx = self.send_and_expect(self.pg0, tx, self.pg0)
-        self.verify_tunneled_4o4(self.pg0, rx, tx, self.pg0.local_ip4, "1.1.1.2")
+        self.verify_tunneled_mpls_o_4(
+            self.pg0,
+            rx,
+            tx,
+            self.pg0.local_ip4,
+            "1.1.1.2",
+            [VppMplsLabel(44), VppMplsLabel(46), VppMplsLabel(33)],
+        )
 
         mpls_tun_l2 = VppMPLSTunnelInterface(
             self,
